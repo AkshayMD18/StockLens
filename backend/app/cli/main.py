@@ -1,70 +1,86 @@
 import logging
-import sys
 from pathlib import Path
+
+from rich.panel import Panel
+from rich.pretty import Pretty
 
 from app.agents.research import create_research_agent
 from app.cli.commands.login import execute as kite_login
 from app.cli.commands.status import execute as kite_status
-from app.cli.query import stream_reply
+from app.cli.query import console, stream_reply
 from app.mcp.kite import session as kite_session
 
 LOG_FILE = Path(__file__).resolve().parents[2] / "stocklens_cli.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler(sys.stdout)],
+    handlers=[logging.FileHandler(LOG_FILE)],
 )
 logger = logging.getLogger("stocklens.cli")
 
 
 async def run(agent, kite_tools: list) -> None:
     messages: list[dict[str, str]] = []
-    print("StockLens CLI with Kite tools. Commands: /login, /status, /exit.")
+    console.print(
+        Panel(
+            "[dim]/login[/], [dim]/status[/], [dim]/exit[/]",
+            title="[bold cyan]StockLens[/]",
+            border_style="cyan",
+        )
+    )
 
     while True:
         try:
-            message = input("\nYou > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
+            message = console.input("\n[bold green]You[/] [dim]>[/] ").strip()
+        except EOFError, KeyboardInterrupt:
+            console.print()
             return
 
         if message.lower() in {"/exit", "exit", "quit"}:
+            console.print("[dim]Goodbye.[/]")
             return
         if message.lower() == "/login":
             try:
-                print(f"StockLens > {await kite_login(kite_tools)}")
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]",
+                    Pretty(await kite_login(kite_tools)),
+                )
             except Exception as error:
                 logger.exception("kite_login_error")
-                print(f"StockLens > Login failed: {error}")
+                console.print(f"[bold red]Login failed:[/] {error}")
             continue
         if message.lower() == "/status":
             try:
-                print(f"StockLens > {await kite_status(kite_tools)}")
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]",
+                    Pretty(await kite_status(kite_tools)),
+                )
             except Exception as error:
                 logger.exception("kite_status_error")
-                print(f"StockLens > Not logged in: {error}")
+                console.print(f"[bold yellow]Not logged in:[/] {error}")
             continue
         if not message:
             continue
 
         messages.append({"role": "user", "content": message})
-        print("StockLens > ", end="", flush=True)
+        console.print("[bold cyan]StockLens[/] [dim]>[/]")
         try:
             response = await stream_reply(agent, messages)
         except Exception as error:
             messages.pop()
             logger.exception("agent_error")
-            print(f"\nError: {error}")
+            console.print(f"[bold red]Error:[/] {error}")
             continue
 
         messages.append({"role": "assistant", "content": response})
 
 
 async def main() -> None:
-    print("Connecting to Kite tools...", flush=True)
     try:
         async with kite_session() as kite_tools:
-            await run(await create_research_agent(kite_tools), kite_tools)
+            with console.status("[cyan]Preparing StockLens...[/]"):
+                agent = await create_research_agent(kite_tools)
+            await run(agent, kite_tools)
     except Exception as error:
-        print(f"Kite tools are unavailable; continuing without them: {error}")
+        console.print(f"[bold yellow]Kite tools unavailable:[/] {error}")
         await run(await create_research_agent(), [])

@@ -1,0 +1,33 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+.secrets/
+credentials.json
+token.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data and logs
+*.log
+*.db
+*.sqlite
+*.sqlite-*
+.coverage
+htmlcov/
+
+# OS files
+Thumbs.db
+.DS_Store

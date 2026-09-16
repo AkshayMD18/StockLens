@@ -32,4 +32,15 @@ async def session():
             yield tools
     except Exception as error:
         logger.exception("Kite tool discovery failed")
-        raise RuntimeError(f"No Kite MCP tools loaded: {type(error).__name__}: {error}") from error
+        raise RuntimeError(
+            f"No Kite MCP tools loaded: {type(error).__name__}: {error}"
+        ) from error
+
+
+async def call_kite_tool(tools: list, tool_name: str, arguments: dict) -> object:
+    tool = next((tool for tool in tools if tool.name == tool_name), None)
+
+    if tool is None:
+        raise RuntimeError(f"Kite tool is unavailable: {tool_name}")
+
+    return await tool.ainvoke(arguments)

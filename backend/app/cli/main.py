@@ -6,6 +6,7 @@ from rich.pretty import Pretty
 
 from app.agents.research import create_research_agent
 from app.cli.commands.login import execute as kite_login
+from app.cli.commands.screener import define_screener
 from app.cli.commands.status import execute as kite_status
 from app.cli.query import console, stream_reply
 from app.mcp.kite import session as kite_session
@@ -23,7 +24,7 @@ async def run(agent, kite_tools: list) -> None:
     messages: list[dict[str, str]] = []
     console.print(
         Panel(
-            "[dim]/login[/], [dim]/status[/], [dim]/exit[/]",
+            "[dim]/login[/], [dim]/status[/], [dim]/screener <filters>[/], [dim]/exit[/]",
             title="[bold cyan]StockLens[/]",
             border_style="cyan",
         )
@@ -37,7 +38,6 @@ async def run(agent, kite_tools: list) -> None:
             return
 
         if message.lower() in {"/exit", "exit", "quit"}:
-            console.print("[dim]Goodbye.[/]")
             return
         if message.lower() == "/login":
             try:
@@ -58,6 +58,17 @@ async def run(agent, kite_tools: list) -> None:
             except Exception as error:
                 logger.exception("kite_status_error")
                 console.print(f"[bold yellow]Not logged in:[/] {error}")
+            continue
+        if message.lower().startswith("/screener"):
+            _, _, query = message.partition(" ")
+            try:
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]",
+                    await define_screener(query),
+                )
+            except Exception as error:
+                logger.exception("screener_error")
+                console.print(f"[bold red]Screener failed:[/] {error}")
             continue
         if not message:
             continue

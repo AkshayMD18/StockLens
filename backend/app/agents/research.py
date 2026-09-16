@@ -17,7 +17,9 @@ def relevant_tools(messages, tool_by_name):
 
     names: list[str] = []
 
-    if any(
+    if any(word in message for word in ("history", "historical", "candle", "year")):
+        names += ["search_instruments", "get_historical_data"]
+    elif any(
         word in message for word in ("stock", "share", "price", "analysis", "quote")
     ):
         names += ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"]

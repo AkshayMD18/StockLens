@@ -44,12 +44,13 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
         names = (
             "get_ltp", "get_ohlc", "get_quotes", "get_historical_data",
             "get_holdings", "get_positions", "get_profile", "get_margins",
-            "get_orders", "get_trades",
+            "get_orders", "get_trades", "search_instruments",
         )
         tools = {name: SimpleNamespace(name=name) for name in names}
 
         cases = {
             "Analyse ZYDUSLIFE stock": ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"],
+            "Can you get me 1 year data on the stock RELIANCE": ["search_instruments", "get_historical_data"],
             "Show my holdings and PnL": ["get_holdings", "get_positions"],
             "Show account margin": ["get_profile", "get_margins"],
             "Show my orders": ["get_orders", "get_trades"],

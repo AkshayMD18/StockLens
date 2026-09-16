@@ -1,12 +1,14 @@
 import logging
 from pathlib import Path
 
+from langchain_core.messages import HumanMessage
 from rich.panel import Panel
 
-from app.agents.research import create_research_agent
+from app.agents.research import create_research_agent, relevant_tools
 from app.cli.commands.login import execute as kite_login
 from app.cli.commands.screener import define_screener
 from app.cli.commands.status import execute as kite_status
+from app.cli.commands.strategy import execute as run_strategy
 from app.cli.query import console, stream_reply
 from app.mcp.kite import session as kite_session
 
@@ -23,7 +25,7 @@ async def run(agent, kite_tools: list) -> None:
     messages: list[dict[str, str]] = []
     console.print(
         Panel(
-            "[dim]/login[/], [dim]/status[/], [dim]/screener <filters>[/], [dim]/exit[/]",
+            "[dim]/login[/], [dim]/status[/], [dim]/screener <filters>[/], [dim]/strategy <id> <symbol>[/], [dim]/exit[/]",
             title="[bold cyan]StockLens[/]",
             border_style="cyan",
         )
@@ -69,13 +71,31 @@ async def run(agent, kite_tools: list) -> None:
                 logger.exception("screener_error")
                 console.print(f"[bold red]Screener failed:[/] {error}")
             continue
+        if message.lower().startswith("/strategy"):
+            _, *arguments = message.split()
+            if len(arguments) != 2:
+                console.print("[bold red]Usage:[/] /strategy <id> <symbol>")
+                continue
+            try:
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]",
+                    await run_strategy(*arguments, kite_tools=kite_tools),
+                )
+            except Exception as error:
+                logger.exception("strategy_error")
+                console.print(f"[bold red]Strategy failed:[/] {error}")
+            continue
         if not message:
             continue
 
         messages.append({"role": "user", "content": message})
         console.print("[bold cyan]StockLens[/] [dim]>[/]")
         try:
-            response = await stream_reply(agent, messages)
+            tool_by_name = {tool.name: tool for tool in kite_tools}
+            reply_agent = await create_research_agent(
+                relevant_tools([HumanMessage(content=message)], tool_by_name)
+            )
+            response = await stream_reply(reply_agent, messages)
         except Exception as error:
             messages.pop()
             logger.exception("agent_error")

@@ -1,5 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
+from rich.console import Group
 from rich.table import Table
 
 from app.core.groq import groq_model
@@ -15,7 +16,7 @@ class ScanRequest(BaseModel):
 
 def _display(value: object) -> str:
     if value is None:
-        return "—"
+        return "-"
     if isinstance(value, float):
         return f"{value:,.2f}"
     if isinstance(value, int):
@@ -23,31 +24,59 @@ def _display(value: object) -> str:
     return str(value)
 
 
-def scan_table(result: dict) -> Table:
-    columns = (
-        ("symbol", "Symbol"),
-        ("name", "Company"),
-        ("close", "Close"),
-        ("rsi_14", "RSI"),
-        ("rel_volume", "Rel. Volume"),
-        ("ret_1d", "1D %"),
-        ("ret_1m", "1M %"),
-        ("marketcap", "Market Cap"),
-        ("sector", "Sector"),
-    )
-    table = Table(title="PatternsRadar Screener Results")
+def _table(
+    result: dict, title: str, columns: tuple[tuple[str, str], ...]
+) -> Table:
+    table = Table(title=title)
     for _, label in columns:
         table.add_column(label)
     for row in result.get("rows", []):
         table.add_row(*(_display(row.get(key)) for key, _ in columns))
-    status = "truncated" if result.get("truncated") else "complete"
-    table.caption = (
-        f"{result.get('count', 0)} matches · as of {result.get('asOf', '—')} · {status}"
-    )
     return table
 
 
-async def define_screener(query: str) -> Table:
+def scan_tables(result: dict) -> Group:
+    selection_columns = (
+        ("symbol", "Symbol"),
+        ("name", "Company"),
+        ("sector", "Sector"),
+        ("close", "Close"),
+        ("rsi_14", "RSI"),
+        ("sma_50", "SMA 50"),
+        ("sma_200", "SMA 200"),
+        ("adx_14", "ADX"),
+        ("rel_volume", "Rel. Volume"),
+        ("delivery_pct", "Delivery %"),
+        ("ret_1m", "1M %"),
+        ("ret_1y", "1Y %"),
+        ("marketcap", "Market Cap"),
+    )
+    context_columns = (
+        ("symbol", "Symbol"),
+        ("open", "Open"),
+        ("high", "High"),
+        ("low", "Low"),
+        ("atr_14", "ATR"),
+        ("volume", "Volume"),
+        ("turnover", "Turnover"),
+        ("ret_1d", "1D %"),
+        ("ret_1w", "1W %"),
+        ("ret_3m", "3M %"),
+        ("high_52w", "52W High"),
+        ("low_52w", "52W Low"),
+        ("pct_from_52w_high", "% From 52W High"),
+        ("has_fno", "F&O"),
+    )
+    status = "truncated" if result.get("truncated") else "complete"
+    caption = f"{result.get('count', 0)} matches | as of {result.get('asOf', '-')} | {status}"
+    selection = _table(result, "Stock Selection Signals", selection_columns)
+    context = _table(result, "Supporting Market Context", context_columns)
+    selection.caption = caption
+    context.caption = caption
+    return Group(selection, context)
+
+
+async def define_screener(query: str) -> Group:
     if not query.strip():
         raise ValueError("Usage: /screener <filters to screen for>")
 
@@ -68,4 +97,4 @@ async def define_screener(query: str) -> Table:
             ]
         )
     )
-    return scan_table(await screen_stocks(scan.source, scan.universe, scan.limit))
+    return scan_tables(await screen_stocks(scan.source, scan.universe, scan.limit))

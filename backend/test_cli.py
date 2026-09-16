@@ -93,7 +93,8 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
             },
         )()
 
-        self.assertEqual(await kite_login([login_tool]), "https://kite.trade/login")
+        rendered = await kite_login([login_tool])
+        self.assertEqual(type(rendered).__name__, "Markdown")
         login_tool.ainvoke.assert_awaited_once_with({})
 
     async def test_kite_status_calls_profile_tool_without_agent(self):
@@ -102,11 +103,14 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
             (),
             {
                 "name": "get_profile",
-                "ainvoke": AsyncMock(return_value={"user_name": "Ava"}),
+            "ainvoke": AsyncMock(
+                return_value=[{"type": "text", "text": '{"user_name":"Ava"}'}]
+            ),
             },
         )()
 
-        self.assertEqual(await kite_status([profile_tool]), {"user_name": "Ava"})
+        rendered = await kite_status([profile_tool])
+        self.assertEqual(type(rendered).__name__, "Table")
         profile_tool.ainvoke.assert_awaited_once_with({})
 
 

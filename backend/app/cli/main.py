@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from rich.panel import Panel
-from rich.pretty import Pretty
 
 from app.agents.research import create_research_agent
 from app.cli.commands.login import execute as kite_login
@@ -43,7 +42,7 @@ async def run(agent, kite_tools: list) -> None:
             try:
                 console.print(
                     "[bold cyan]StockLens[/] [dim]>[/]",
-                    Pretty(await kite_login(kite_tools)),
+                    await kite_login(kite_tools),
                 )
             except Exception as error:
                 logger.exception("kite_login_error")
@@ -53,7 +52,7 @@ async def run(agent, kite_tools: list) -> None:
             try:
                 console.print(
                     "[bold cyan]StockLens[/] [dim]>[/]",
-                    Pretty(await kite_status(kite_tools)),
+                    await kite_status(kite_tools),
                 )
             except Exception as error:
                 logger.exception("kite_status_error")

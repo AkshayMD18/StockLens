@@ -70,6 +70,16 @@ class StrategyExecutorParsingTests(unittest.TestCase):
         with self.assertRaisesRegex(StrategyError, "invalid 'on_true'"):
             validate_strategy(self.strategy)
 
+    def test_analysis_validation(self):
+        self.strategy["analysis"] = {"symbol": "$input.symbol"}
+        validate_strategy(self.strategy)
+        self.strategy["analysis"] = []
+        with self.assertRaisesRegex(StrategyError, "analysis.*dictionary"):
+            validate_strategy(self.strategy)
+        self.strategy["analysis"] = {"symbol": "$$bad"}
+        with self.assertRaisesRegex(StrategyError, "Invalid state reference"):
+            validate_strategy(self.strategy)
+
 
 if __name__ == "__main__":
     unittest.main()

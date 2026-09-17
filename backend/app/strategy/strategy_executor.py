@@ -277,6 +277,10 @@ def validate_strategy(strategy: dict[str, Any]) -> None:
         raise StrategyError("Strategy must be a dictionary")
     _required(strategy, "version")
     get_start_node(strategy)
+    if "analysis" in strategy:
+        if not isinstance(strategy["analysis"], dict):
+            raise StrategyError("Strategy 'analysis' must be a dictionary")
+        validate_reference_syntax(strategy["analysis"])
     for node_id in strategy["nodes"]:
         node = get_node(strategy, node_id)
         node_type = node["type"]
@@ -381,6 +385,8 @@ class StrategyExecutor:
                     "result": parse_result_node(node, state, node_id=current_node_id),
                     "steps": step_count,
                 }
+                if "analysis" in strategy:
+                    result["analysis"] = resolve_value(strategy["analysis"], state)
                 if include_state:
                     result["state"] = state
                 return result

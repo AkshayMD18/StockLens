@@ -30,6 +30,19 @@ class StrategyExecutionTests(unittest.TestCase):
         self.assertEqual(result, {"status": "completed", "result": {"decision": "BUY"}, "steps": 2, "state": {"input": {"symbol": "RELIANCE"}, "value": {"decision": "BUY"}}})
         tool.assert_awaited_once_with("custom", "one", {"symbol": "RELIANCE"})
 
+    def test_analysis_is_resolved_from_final_state(self):
+        definition = strategy({
+            "first": {"type": "operation", "source": "custom", "operation": "one", "inputs": {}, "output": "ema20", "next": "done"},
+            "done": {"type": "result", "decision": "HOLD"},
+        })
+        definition["analysis"] = {
+            "symbol": "$input.symbol",
+            "indicators": {"ema20": "$ema20.value"},
+        }
+        with patch("app.strategy.strategy_executor.run_tool", new=AsyncMock(return_value={"value": 954.32})):
+            result = self.execute(definition)
+        self.assertEqual(result["analysis"], {"symbol": "RELIANCE", "indicators": {"ema20": 954.32}})
+
     def test_sequential_operations_consume_prior_output_in_order(self):
         definition = strategy({
             "first": {"type": "operation", "source": "custom", "operation": "first", "inputs": {}, "output": "first_value", "next": "second"},

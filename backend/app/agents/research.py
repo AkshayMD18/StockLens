@@ -1,8 +1,12 @@
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
+from langchain.tools import tool
 from langchain_core.messages import HumanMessage
 
+from app.cli.commands.strategy import execute as run_strategy
 from app.core.groq import groq_model
+from app.db.database import SessionLocal
+from app.db.models import Strategy
 
 
 def relevant_tools(messages, tool_by_name):
@@ -17,12 +21,27 @@ def relevant_tools(messages, tool_by_name):
 
     names: list[str] = []
 
-    if any(word in message for word in ("history", "historical", "candle", "year")):
-        names += ["search_instruments", "get_historical_data"]
-    elif any(
-        word in message for word in ("stock", "share", "price", "analysis", "quote")
-    ):
-        names += ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"]
+    strategy_request = any(
+        word in message
+        for word in (
+            "strategy",
+            "backtest",
+            "implement",
+            "crossover",
+            "ema",
+            "sma",
+            "signal",
+        )
+    )
+    if strategy_request:
+        names += ["execute_strategy"]
+    else:
+        if any(word in message for word in ("history", "historical", "candle", "year")):
+            names += ["search_instruments", "get_historical_data"]
+        elif any(
+            word in message for word in ("stock", "share", "price", "analysis", "quote")
+        ):
+            names += ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"]
 
     if any(word in message for word in ("holding", "portfolio", "position", "pnl")):
         names += ["get_holdings", "get_positions"]
@@ -38,6 +57,30 @@ def relevant_tools(messages, tool_by_name):
 
 async def create_research_agent(tools: list | None = None):
     tools = tools or []
+
+    @tool
+    async def execute_strategy(strategy_name: str, symbol: str) -> dict:
+        """Run a stored deterministic trading strategy on an NSE stock."""
+
+        db = SessionLocal()
+        try:
+            strategy = (
+                db.query(Strategy).filter(Strategy.name.ilike(strategy_name)).first()
+            )
+        finally:
+            db.close()
+
+        if strategy is None:
+            raise ValueError(f"Strategy not found: {strategy_name}")
+
+        execution = await run_strategy(
+            str(strategy.id),
+            symbol.upper(),
+            kite_tools=tools,
+        )
+        return execution.get("analysis", {})
+
+    tools = [*tools, execute_strategy]
     tool_by_name = {tool.name: tool for tool in tools}
 
     @wrap_model_call
@@ -48,14 +91,21 @@ async def create_research_agent(tools: list | None = None):
 
     prompt = """
     You are StockLens, a conversational stock research assistant.
-    Once you have enough information, give the user a concise and useful answer.
+
+    When the user asks to run, implement, analyze, or backtest a known trading
+    strategy on a stock, you MUST call execute_strategy.
+
+    Do not calculate indicators yourself.
+    Do not invent strategy results.
+    The execute_strategy result is deterministic and authoritative.
+
+    Once the tool returns, explain the result concisely.
     """
 
     if tools:
         prompt += """
-        You have access to Zerodha Kite MCP tools. Use them for market and
-        account data when relevant. Call the tool that matches the requested
-        data and its documented inputs. Do not call tools unnecessarily.
+        You also have access to Zerodha Kite MCP tools. Use them for market and
+        account data when relevant.
         """
 
     return create_agent(

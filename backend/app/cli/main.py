@@ -1,10 +1,9 @@
 import logging
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage
 from rich.panel import Panel
 
-from app.agents.research import create_research_agent, relevant_tools
+from app.agents.research import create_research_agent
 from app.cli.commands.login import execute as kite_login
 from app.cli.commands.screener import define_screener
 from app.cli.commands.status import execute as kite_status
@@ -77,9 +76,13 @@ async def run(agent, kite_tools: list) -> None:
                 console.print("[bold red]Usage:[/] /strategy <id> <symbol>")
                 continue
             try:
+                result = await run_strategy(*arguments, kite_tools=kite_tools)
                 console.print(
                     "[bold cyan]StockLens[/] [dim]>[/]",
-                    await run_strategy(*arguments, kite_tools=kite_tools),
+                    {
+                        "decision": result["result"]["decision"],
+                        "analysis": result.get("analysis", {}),
+                    },
                 )
             except Exception as error:
                 logger.exception("strategy_error")
@@ -91,10 +94,7 @@ async def run(agent, kite_tools: list) -> None:
         messages.append({"role": "user", "content": message})
         console.print("[bold cyan]StockLens[/] [dim]>[/]")
         try:
-            tool_by_name = {tool.name: tool for tool in kite_tools}
-            reply_agent = await create_research_agent(
-                relevant_tools([HumanMessage(content=message)], tool_by_name)
-            )
+            reply_agent = await create_research_agent(kite_tools)
             response = await stream_reply(reply_agent, messages)
         except Exception as error:
             messages.pop()

@@ -134,12 +134,14 @@ ZERODHA_OPERATIONS = {"market.history": "get_historical_data"}
 
 def _history_result(result: Any) -> Any:
     candles = _find_candles(result)
-    if candles is not None:
-        return {
+    if candles:
+        history: dict[str, Any] = {
             field: [candle[field] for candle in candles]
             for field in ("open", "high", "low", "close", "volume")
             if all(field in candle for candle in candles)
         }
+        history["latest"] = candles[-1]
+        return history
     detail = _response_text(result)
     message = "Kite history response has no candle close series"
     logger.error("kite_history_invalid_response response=%r", result)
@@ -160,8 +162,21 @@ def _response_text(value: Any) -> str:
 
 
 def _find_candles(value: Any) -> list[dict] | None:
-    if isinstance(value, list) and value and all(isinstance(item, list) and len(item) >= 6 for item in value):
-        return [{"open": item[1], "high": item[2], "low": item[3], "close": item[4], "volume": item[5]} for item in value]
+    if (
+        isinstance(value, list)
+        and value
+        and all(isinstance(item, list) and len(item) >= 6 for item in value)
+    ):
+        return [
+            {
+                "open": item[1],
+                "high": item[2],
+                "low": item[3],
+                "close": item[4],
+                "volume": item[5],
+            }
+            for item in value
+        ]
     if (
         isinstance(value, list)
         and value
@@ -194,7 +209,8 @@ def _find_instrument_token(value: Any, symbol: str) -> str | None:
             return None
     if isinstance(value, dict):
         if (
-            str(value.get("tradingsymbol", value.get("symbol", ""))).upper() == symbol.upper()
+            str(value.get("tradingsymbol", value.get("symbol", ""))).upper()
+            == symbol.upper()
             and value.get("instrument_token") is not None
             and value.get("exchange", "NSE") == "NSE"
         ):
@@ -213,7 +229,9 @@ def _find_instrument_token(value: Any, symbol: str) -> str | None:
 
 def _kite_datetime(value: Any, end_of_day: bool) -> str:
     value = str(value)
-    return value if " " in value else f"{value} {'23:59:59' if end_of_day else '00:00:00'}"
+    return (
+        value if " " in value else f"{value} {'23:59:59' if end_of_day else '00:00:00'}"
+    )
 
 
 async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
@@ -221,7 +239,9 @@ async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
     if not isinstance(symbol, str) or not symbol:
         raise ValueError("market.history requires a non-empty symbol")
     logger.info("kite_history_search symbol=%s exchange=NSE", symbol)
-    instruments = await call_kite_tool(tools, "search_instruments", {"query": symbol, "exchange": "NSE"})
+    instruments = await call_kite_tool(
+        tools, "search_instruments", {"query": symbol, "exchange": "NSE"}
+    )
     token = _find_instrument_token(instruments, symbol)
     if token is None:
         raise ValueError(f"No NSE instrument token found for symbol: {symbol}")
@@ -234,7 +254,9 @@ async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
         "to_date": _kite_datetime(to_date, True),
         "interval": arguments.get("interval", "day"),
     }
-    logger.info("kite_history_request symbol=%s arguments=%s", symbol, historical_arguments)
+    logger.info(
+        "kite_history_request symbol=%s arguments=%s", symbol, historical_arguments
+    )
     result = await call_kite_tool(
         tools,
         "get_historical_data",

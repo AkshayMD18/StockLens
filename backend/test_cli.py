@@ -1,15 +1,15 @@
 import unittest
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain.messages import AIMessageChunk
 from langchain_core.messages import HumanMessage
 from rich.console import Console
 
-from app.agents.research import relevant_tools
-import app.cli.query as query
 import app.cli.main as cli_main
+import app.cli.query as query
+from app.agents.research import relevant_tools
 from app.cli import kite_login, kite_status, stream_reply
 
 
@@ -30,8 +30,17 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
     async def test_stream_reply_preserves_markdown_table_text(self):
         class TableAgent:
             async def astream(self, *_args, **_kwargs):
-                yield {"type": "messages", "data": (AIMessageChunk(content="| Name | Price |\n"), {})}
-                yield {"type": "messages", "data": (AIMessageChunk(content="| --- | ---: |\n| ACME | 42 |"), {})}
+                yield {
+                    "type": "messages",
+                    "data": (AIMessageChunk(content="| Name | Price |\n"), {}),
+                }
+                yield {
+                    "type": "messages",
+                    "data": (
+                        AIMessageChunk(content="| --- | ---: |\n| ACME | 42 |"),
+                        {},
+                    ),
+                }
 
         console = Console(record=True, force_terminal=True)
         with patch.object(query, "console", console):
@@ -42,15 +51,31 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
 
     def test_relevant_tools_filters_and_orders_tools(self):
         names = (
-            "get_ltp", "get_ohlc", "get_quotes", "get_historical_data",
-            "get_holdings", "get_positions", "get_profile", "get_margins",
-            "get_orders", "get_trades", "search_instruments",
+            "get_ltp",
+            "get_ohlc",
+            "get_quotes",
+            "get_historical_data",
+            "get_holdings",
+            "get_positions",
+            "get_profile",
+            "get_margins",
+            "get_orders",
+            "get_trades",
+            "search_instruments",
         )
         tools = {name: SimpleNamespace(name=name) for name in names}
 
         cases = {
-            "Analyse ZYDUSLIFE stock": ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"],
-            "Can you get me 1 year data on the stock RELIANCE": ["search_instruments", "get_historical_data"],
+            "Analyse ZYDUSLIFE stock": [
+                "get_ltp",
+                "get_ohlc",
+                "get_quotes",
+                "get_historical_data",
+            ],
+            "Can you get me 1 year data on the stock RELIANCE": [
+                "search_instruments",
+                "get_historical_data",
+            ],
             "Show my holdings and PnL": ["get_holdings", "get_positions"],
             "Show account margin": ["get_profile", "get_margins"],
             "Show my orders": ["get_orders", "get_trades"],
@@ -79,10 +104,31 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(cli_main, "kite_session", fake_session),
-            patch.object(cli_main, "create_research_agent", AsyncMock(return_value="agent")),
+            patch.object(
+                cli_main, "create_research_agent", AsyncMock(return_value="agent")
+            ),
             patch.object(cli_main, "run", fake_run),
         ):
             await cli_main.main()
+
+    async def test_strategy_prints_analysis_without_state(self):
+        console = Console(record=True, force_terminal=True)
+        console.input = MagicMock(side_effect=["/strategy 1 RELIANCE", "/exit"])
+        result = {
+            "result": {"decision": "HOLD"},
+            "analysis": {"symbol": "RELIANCE", "signals": {"entry": False}},
+            "state": {"raw": "hidden"},
+        }
+        with (
+            patch.object(cli_main, "console", console),
+            patch.object(cli_main, "run_strategy", AsyncMock(return_value=result)),
+        ):
+            await cli_main.run(None, [])
+
+        output = console.export_text()
+        self.assertIn("RELIANCE", output)
+        self.assertIn("HOLD", output)
+        self.assertNotIn("hidden", output)
 
     async def test_kite_login_calls_login_tool_without_agent(self):
         login_tool = type(
@@ -104,9 +150,9 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
             (),
             {
                 "name": "get_profile",
-            "ainvoke": AsyncMock(
-                return_value=[{"type": "text", "text": '{"user_name":"Ava"}'}]
-            ),
+                "ainvoke": AsyncMock(
+                    return_value=[{"type": "text", "text": '{"user_name":"Ava"}'}]
+                ),
             },
         )()
 

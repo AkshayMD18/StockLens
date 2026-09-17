@@ -57,7 +57,7 @@ class ToolsTest(unittest.TestCase):
 
                 self.assertEqual(
                     asyncio.run(run_tool("zerodha", "market.history", {"symbol": "RELIANCE"})),
-                    {"close": [1]},
+                    {"close": [1], "latest": {"close": 1}},
                 )
         self.assertEqual(call.await_args_list[1].args[1], "get_historical_data")
 
@@ -71,7 +71,7 @@ class ToolsTest(unittest.TestCase):
         ) as call:
             self.assertEqual(
                 asyncio.run(run_tool("zerodha", "market.history", {"symbol": "RELIANCE"}, ["loaded"])),
-                {"close": [1]},
+                {"close": [1], "latest": {"close": 1}},
             )
         self.assertEqual(call.await_args_list[1].args[1], "get_historical_data")
         self.assertEqual(call.await_args_list[1].args[2]["instrument_token"], 738561)
@@ -85,7 +85,10 @@ class ToolsTest(unittest.TestCase):
             "app.strategy.tools.call_kite_tool", new=AsyncMock(side_effect=[[{"tradingsymbol": "RELIANCE", "instrument_token": 738561}], candles])
         ):
             result = asyncio.run(run_tool("zerodha", "market.history", {"symbol": "RELIANCE"}, ["loaded"]))
-        self.assertEqual(result, {"open": [99, 100], "close": [100, 101]})
+        self.assertEqual(
+            result,
+            {"open": [99, 100], "close": [100, 101], "latest": {"close": 101, "open": 100}},
+        )
 
     def test_wrapped_history_result_is_columnar(self):
         import asyncio
@@ -97,7 +100,7 @@ class ToolsTest(unittest.TestCase):
         ):
             self.assertEqual(
                 asyncio.run(run_tool("zerodha", "market.history", {"symbol": "RELIANCE"}, ["loaded"])),
-                {"close": [100]},
+                {"close": [100], "latest": {"close": 100}},
             )
 
     def test_text_history_result_is_columnar(self):
@@ -109,7 +112,7 @@ class ToolsTest(unittest.TestCase):
         with patch("app.strategy.tools.call_kite_tool", new=AsyncMock(side_effect=[[{"tradingsymbol": "RELIANCE", "instrument_token": 738561}], response])):
             self.assertEqual(
                 asyncio.run(run_tool("zerodha", "market.history", {"symbol": "RELIANCE"}, ["loaded"])),
-                {"close": [100]},
+                {"close": [100], "latest": {"close": 100}},
             )
 
 

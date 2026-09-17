@@ -9,7 +9,7 @@ from rich.console import Console
 
 import app.cli.main as cli_main
 import app.cli.query as query
-from app.agents.research import relevant_tools
+from app.agents.research import _portfolio_context, relevant_tools
 from app.cli import kite_login, kite_status, stream_reply
 
 
@@ -22,6 +22,43 @@ class FakeAgent:
 
 
 class CliTest(unittest.IsolatedAsyncioTestCase):
+    async def test_portfolio_context_runs_holdings_then_positions_and_filters_symbol(self):
+        calls = []
+
+        class KiteTool:
+            def __init__(self, name, response):
+                self.name, self.response = name, response
+
+            async def ainvoke(self, arguments):
+                calls.append((self.name, arguments))
+                return self.response
+
+        portfolio = await _portfolio_context(
+            [
+                KiteTool("get_holdings", [{"tradingsymbol": "RELIANCE", "quantity": 4, "pnl": 10}, {"tradingsymbol": "TCS", "quantity": 1}]),
+                KiteTool("get_positions", {"net": [{"tradingsymbol": "RELIANCE", "quantity": -2, "average_price": 100}]})
+            ],
+            "RELIANCE",
+        )
+
+        self.assertEqual(calls, [("get_holdings", {}), ("get_positions", {})])
+        self.assertTrue(portfolio["has_exposure"])
+        self.assertEqual(portfolio["summary"]["holding_quantity"], 4)
+        self.assertEqual(portfolio["summary"]["net_position_quantity"], -2)
+
+    async def test_portfolio_context_marks_lookup_failure_unavailable(self):
+        class BrokenTool:
+            name = "get_holdings"
+
+            async def ainvoke(self, _arguments):
+                raise RuntimeError("not logged in")
+
+        portfolio = await _portfolio_context([BrokenTool()], "RELIANCE")
+
+        self.assertEqual(portfolio["status"], "unavailable")
+        self.assertIsNone(portfolio["has_exposure"])
+        self.assertIn("not logged in", portfolio["error"])
+
     async def test_stream_reply_collects_model_text(self):
         response = await stream_reply(FakeAgent(), [{"role": "user", "content": "Hi"}])
 
@@ -51,6 +88,7 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
 
     def test_relevant_tools_filters_and_orders_tools(self):
         names = (
+            "execute_strategy",
             "get_ltp",
             "get_ohlc",
             "get_quotes",
@@ -77,6 +115,9 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
                 "get_historical_data",
             ],
             "Show my holdings and PnL": ["get_holdings", "get_positions"],
+            "Run the EMA Crossover strategy on RELIANCE and include my position": [
+                "execute_strategy"
+            ],
             "Show account margin": ["get_profile", "get_margins"],
             "Show my orders": ["get_orders", "get_trades"],
             "Hello": [],

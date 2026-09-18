@@ -15,7 +15,11 @@ def _kite_data(response):
     """Decode the text payload returned by Kite MCP, preserving native values."""
     if isinstance(response, list):
         text = next(
-            (item.get("text") for item in response if isinstance(item, dict) and "text" in item),
+            (
+                item.get("text")
+                for item in response
+                if isinstance(item, dict) and "text" in item
+            ),
             None,
         )
         if text is not None:
@@ -33,7 +37,9 @@ def _symbol_records(value, symbol):
         return []
     if value.get("tradingsymbol", "").upper() == symbol:
         return [value]
-    return [record for item in value.values() for record in _symbol_records(item, symbol)]
+    return [
+        record for item in value.values() for record in _symbol_records(item, symbol)
+    ]
 
 
 def _position_records(value):
@@ -48,17 +54,27 @@ def _portfolio_status(symbol, holdings, positions, errors):
     position_records = _symbol_records(_position_records(positions), symbol)
     records = [*holding_records, *position_records]
     exposure = [
-        {key: record[key] for key in ("quantity", "average_price", "last_price", "pnl", "product") if key in record}
+        {
+            key: record[key]
+            for key in ("quantity", "average_price", "last_price", "pnl", "product")
+            if key in record
+        }
         for record in records
     ]
     return {
         "symbol": symbol,
         "status": "unavailable" if errors else "available",
         "error": "; ".join(errors) if errors else None,
-        "has_exposure": None if errors else any(record.get("quantity", 0) != 0 for record in records),
+        "has_exposure": None
+        if errors
+        else any(record.get("quantity", 0) != 0 for record in records),
         "summary": {
-            "holding_quantity": sum(record.get("quantity", 0) for record in holding_records),
-            "net_position_quantity": sum(record.get("quantity", 0) for record in position_records),
+            "holding_quantity": sum(
+                record.get("quantity", 0) for record in holding_records
+            ),
+            "net_position_quantity": sum(
+                record.get("quantity", 0) for record in position_records
+            ),
             "exposure": exposure,
         },
         "holdings": holding_records,
@@ -77,7 +93,9 @@ async def _portfolio_context(tools, symbol):
             results[key] = _kite_data(await kite_tool.ainvoke({}))
         except Exception as error:
             errors.append(f"{name}: {error}")
-    return _portfolio_status(symbol, results.get("holdings", []), results.get("positions", []), errors)
+    return _portfolio_status(
+        symbol, results.get("holdings", []), results.get("positions", []), errors
+    )
 
 
 def relevant_tools(messages, tool_by_name):
@@ -114,7 +132,9 @@ def relevant_tools(messages, tool_by_name):
         ):
             names += ["get_ltp", "get_ohlc", "get_quotes", "get_historical_data"]
 
-    if not strategy_request and any(word in message for word in ("holding", "portfolio", "position", "pnl")):
+    if not strategy_request and any(
+        word in message for word in ("holding", "portfolio", "position", "pnl")
+    ):
         names += ["get_holdings", "get_positions"]
 
     if any(word in message for word in ("profile", "account", "margin", "fund")):
@@ -156,6 +176,7 @@ async def create_research_agent(tools: list | None = None):
             "portfolio": portfolio,
             "decision": execution["result"]["decision"],
             "analysis": execution.get("analysis", {}),
+            "prompt": strategy.prompt,
         }
 
     tools = [*tools, execute_strategy]
@@ -181,6 +202,10 @@ async def create_research_agent(tools: list | None = None):
     strategy signals and never infer alternate rules from indicator values.
     Once the tool returns, summarize its portfolio context, decision, and
     analysis concisely. If portfolio status is unavailable, say so clearly.
+
+    After execute_strategy returns, follow its `prompt` field when writing the
+    final response. Its decision and analysis are authoritative; never change the
+    decision or invent signals.
     """
 
     if tools:

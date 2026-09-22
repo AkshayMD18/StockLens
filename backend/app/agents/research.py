@@ -5,7 +5,7 @@ from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_
 from langchain.tools import tool
 from langchain_core.messages import HumanMessage
 
-from app.cli.commands.strategy import execute as run_strategy
+from app.cli.commands.strategy import run_strategy
 from app.core.groq import groq_model
 from app.db.database import SessionLocal
 from app.db.models import Strategy

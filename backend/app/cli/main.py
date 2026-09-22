@@ -4,12 +4,12 @@ from pathlib import Path
 from rich.panel import Panel
 
 from app.agents.research import create_research_agent
-from app.cli.commands.login import execute as kite_login
+from app.cli.commands.login import kite_login
 from app.cli.commands.screener import define_screener
-from app.cli.commands.status import execute as kite_status
-from app.cli.commands.strategy import execute as run_strategy
+from app.cli.commands.status import kite_status
+from app.cli.commands.strategy import list_strategies, run_strategy, strategy_details
 from app.cli.query import console, stream_reply
-from app.mcp.kite import session as kite_session
+from app.mcp.kite import kite_session
 
 LOG_FILE = Path(__file__).resolve().parents[2] / "stocklens_cli.log"
 logging.basicConfig(
@@ -70,11 +70,36 @@ async def run(agent, kite_tools: list) -> None:
                 logger.exception("screener_error")
                 console.print(f"[bold red]Screener failed:[/] {error}")
             continue
+        if message.lower() == "/strategy-list":
+            try:
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]", await list_strategies()
+                )
+            except Exception as error:
+                logger.exception("strategy_list_error")
+                console.print(f"[bold red]Could not list strategies:[/] {error}")
+            continue
         if message.lower().startswith("/strategy"):
             _, *arguments = message.split()
-            if len(arguments) != 2:
-                console.print("[bold red]Usage:[/] /strategy <id> <symbol>")
+
+            if len(arguments) == 1:
+                try:
+                    strategy = await strategy_details(arguments[0])
+                    if strategy is None:
+                        console.print("[bold red]Strategy not found.[/]")
+                    else:
+                        console.print("[bold cyan]StockLens[/] [dim]>[/]")
+                        console.print(strategy)
+
+                except Exception as error:
+                    logger.exception("strategy_get_error")
+                    console.print(f"[bold red]Could not get strategy:[/] {error}")
                 continue
+
+            if len(arguments) != 2:
+                console.print("[bold red]Usage:[/] /strategy <id> [symbol]")
+                continue
+
             try:
                 result = await run_strategy(*arguments, kite_tools=kite_tools)
                 console.print(
@@ -87,6 +112,9 @@ async def run(agent, kite_tools: list) -> None:
             except Exception as error:
                 logger.exception("strategy_error")
                 console.print(f"[bold red]Strategy failed:[/] {error}")
+            continue
+        if message.lower() == "/clear":
+            console.clear()
             continue
         if not message:
             continue

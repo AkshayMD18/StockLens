@@ -1,6 +1,6 @@
 import unittest
 
-from app.strategy.tools import crosses_above, crosses_below, ema, run_tool
+from app.strategy.tools import crosses_above, crosses_below, ema, rsi, run_tool
 
 
 class ToolsTest(unittest.TestCase):
@@ -15,6 +15,18 @@ class ToolsTest(unittest.TestCase):
             ema({"values": [], "period": 2})
         with self.assertRaises(ValueError):
             ema({"values": [1], "period": 0})
+
+    def test_rsi_uses_wilder_smoothing_and_exposes_previous_value(self):
+        result = rsi({"values": [1, 2, 3, 2, 2, 3], "period": 3})
+        self.assertEqual(result["values"][:3], [None, None, None])
+        self.assertAlmostEqual(result["previous_value"], 66.66666666666666)
+        self.assertAlmostEqual(result["value"], 80.95238095238095)
+
+    def test_rsi_rejects_insufficient_or_invalid_input(self):
+        with self.assertRaises(ValueError):
+            rsi({"values": [1, 2, 3, 4], "period": 3})
+        with self.assertRaises(ValueError):
+            rsi({"values": [1, 2, 3, 4, 5], "period": 0})
 
     def test_crossings(self):
         data = {"series_a": [1, 3], "series_b": [2, 2]}
@@ -75,6 +87,77 @@ class ToolsTest(unittest.TestCase):
             )
         self.assertEqual(call.await_args_list[1].args[1], "get_historical_data")
         self.assertEqual(call.await_args_list[1].args[2]["instrument_token"], 738561)
+
+    def test_history_accepts_today_date_token(self):
+        import asyncio
+        from datetime import date
+        from unittest.mock import AsyncMock, patch
+
+        with (
+            patch("app.strategy.tools.date") as mock_date,
+            patch(
+                "app.strategy.tools.call_kite_tool",
+                new=AsyncMock(
+                    side_effect=[
+                        [{"tradingsymbol": "RELIANCE", "instrument_token": 738561}],
+                        [{"close": 1}],
+                    ]
+                ),
+            ) as call,
+        ):
+            mock_date.today.return_value = date(2026, 9, 21)
+            asyncio.run(
+                run_tool(
+                    "zerodha",
+                    "market.history",
+                    {
+                        "symbol": "RELIANCE",
+                        "interval": "5minute",
+                        "from_date": "today",
+                        "to_date": "today",
+                    },
+                    ["loaded"],
+                )
+            )
+
+        self.assertEqual(
+            call.await_args_list[1].args[2],
+            {
+                "instrument_token": 738561,
+                "from_date": "2026-09-21 00:00:00",
+                "to_date": "2026-09-21 23:59:59",
+                "interval": "5minute",
+            },
+        )
+
+    def test_history_uses_lookback_days(self):
+        import asyncio
+        from datetime import date
+        from unittest.mock import AsyncMock, patch
+
+        with (
+            patch("app.strategy.tools.date") as mock_date,
+            patch(
+                "app.strategy.tools.call_kite_tool",
+                new=AsyncMock(
+                    side_effect=[
+                        [{"tradingsymbol": "RELIANCE", "instrument_token": 738561}],
+                        [{"close": 1}],
+                    ]
+                ),
+            ) as call,
+        ):
+            mock_date.today.return_value = date(2026, 9, 21)
+            asyncio.run(
+                run_tool(
+                    "zerodha",
+                    "market.history",
+                    {"symbol": "RELIANCE", "lookback_days": 400},
+                    ["loaded"],
+                )
+            )
+
+        self.assertEqual(call.await_args_list[1].args[2]["from_date"], "2025-08-17 00:00:00")
 
     def test_history_result_is_columnar_for_strategy_references(self):
         import asyncio

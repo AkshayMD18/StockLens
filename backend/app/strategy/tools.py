@@ -3,7 +3,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from app.mcp.kite import call_kite_tool, session
+from app.mcp.kite import call_kite_tool, kite_session
 
 logger = logging.getLogger("stocklens.strategy.tools")
 
@@ -76,6 +76,42 @@ def ema(data: dict) -> dict:
     }
 
 
+def rsi(data: dict) -> dict:
+    values = data["values"]
+    period = data.get("period", 14)
+
+    if not isinstance(period, int) or isinstance(period, bool) or period <= 0:
+        raise ValueError("Period must be a positive integer")
+    if len(values) < period + 2:
+        raise ValueError(f"Need at least {period + 2} values")
+
+    gains = [
+        max(current - previous, 0) for previous, current in zip(values, values[1:])
+    ]
+    losses = [
+        max(previous - current, 0) for previous, current in zip(values, values[1:])
+    ]
+    average_gain = sum(gains[:period]) / period
+    average_loss = sum(losses[:period]) / period
+    rsi_values: list[float | None] = [None] * period
+
+    for gain, loss in zip(gains[period - 1 :], losses[period - 1 :]):
+        if rsi_values[-1] is not None:
+            average_gain = (average_gain * (period - 1) + gain) / period
+            average_loss = (average_loss * (period - 1) + loss) / period
+        if average_loss == 0:
+            value = 100.0 if average_gain else 50.0
+        else:
+            value = 100 - 100 / (1 + average_gain / average_loss)
+        rsi_values.append(value)
+
+    return {
+        "values": rsi_values,
+        "value": rsi_values[-1],
+        "previous_value": rsi_values[-2],
+    }
+
+
 def _crosses(data: dict, direction: str) -> dict:
     series_a = data["series_a"]
     series_b = data["series_b"]
@@ -122,12 +158,41 @@ def crosses_below(data: dict) -> dict:
     return _crosses(data, "below")
 
 
+def vwap(data: dict) -> dict:
+    high, low, close, volume = (
+        data["high"],
+        data["low"],
+        data["close"],
+        data["volume"],
+    )
+
+    if not (len(high) == len(low) == len(close) == len(volume)):
+        raise ValueError("VWAP series must have equal lengths")
+
+    if not close or any(value < 0 for value in volume):
+        raise ValueError("VWAP requires candles and non-negative volume")
+
+    cumulative_pv = cumulative_volume = 0.0
+    values = []
+
+    for high_value, low_value, close_value, volume_value in zip(
+        high, low, close, volume
+    ):
+        cumulative_pv += ((high_value + low_value + close_value) / 3) * volume_value
+        cumulative_volume += volume_value
+        values.append(cumulative_pv / cumulative_volume if cumulative_volume else None)
+
+    return {"values": values, "value": values[-1]}
+
+
 CUSTOM_TOOLS = {
     "calculate_signal": calculate_signal,
     "sma": sma,
     "indicator.ema": ema,
+    "indicator.rsi": rsi,
     "condition.crosses_above": crosses_above,
     "condition.crosses_below": crosses_below,
+    "indicator.vwap": vwap,
 }
 ZERODHA_OPERATIONS = {"market.history": "get_historical_data"}
 
@@ -234,6 +299,10 @@ def _kite_datetime(value: Any, end_of_day: bool) -> str:
     )
 
 
+def _history_date(value: Any, today: date) -> Any:
+    return today.isoformat() if value == "today" else value
+
+
 async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
     symbol = arguments.get("symbol")
     if not isinstance(symbol, str) or not symbol:
@@ -246,8 +315,19 @@ async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
     if token is None:
         raise ValueError(f"No NSE instrument token found for symbol: {symbol}")
     today = date.today()
-    from_date = arguments.get("from_date") or (today - timedelta(days=100)).isoformat()
-    to_date = arguments.get("to_date") or today.isoformat()
+    lookback_days = arguments.get("lookback_days", 100)
+    if (
+        not isinstance(lookback_days, int)
+        or isinstance(lookback_days, bool)
+        or lookback_days <= 0
+    ):
+        raise ValueError("market.history lookback_days must be a positive integer")
+    from_date = _history_date(
+        arguments.get("from_date")
+        or (today - timedelta(days=lookback_days)).isoformat(),
+        today,
+    )
+    to_date = _history_date(arguments.get("to_date") or today.isoformat(), today)
     historical_arguments = {
         "instrument_token": int(token),
         "from_date": _kite_datetime(from_date, False),
@@ -287,7 +367,7 @@ async def run_tool(
                 return await _market_history(arguments, kite_tools)
             result = await call_kite_tool(kite_tools, tool_name, arguments)
         else:
-            async with session() as tools:
+            async with kite_session() as tools:
                 if strategy_operation == "market.history":
                     return await _market_history(arguments, tools)
                 result = await call_kite_tool(tools, tool_name, arguments)

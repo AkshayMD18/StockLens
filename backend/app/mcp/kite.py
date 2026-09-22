@@ -9,7 +9,7 @@ logger = logging.getLogger("stocklens.kite")
 
 
 @asynccontextmanager
-async def session():
+async def kite_session():
     client = MultiServerMCPClient(
         {
             "kite": {

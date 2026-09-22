@@ -3,7 +3,7 @@ import json
 from rich.table import Table
 
 
-async def execute(tools: list) -> object:
+async def kite_status(tools: list) -> object:
     profile_tool = next((tool for tool in tools if tool.name == "get_profile"), None)
     if profile_tool is None:
         raise RuntimeError("Kite profile tool is unavailable")

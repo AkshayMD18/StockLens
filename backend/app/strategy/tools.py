@@ -3,7 +3,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from app.mcp.kite import call_kite_tool, session
+from app.mcp.kite import call_kite_tool, kite_session
 
 logger = logging.getLogger("stocklens.strategy.tools")
 
@@ -85,8 +85,12 @@ def rsi(data: dict) -> dict:
     if len(values) < period + 2:
         raise ValueError(f"Need at least {period + 2} values")
 
-    gains = [max(current - previous, 0) for previous, current in zip(values, values[1:])]
-    losses = [max(previous - current, 0) for previous, current in zip(values, values[1:])]
+    gains = [
+        max(current - previous, 0) for previous, current in zip(values, values[1:])
+    ]
+    losses = [
+        max(previous - current, 0) for previous, current in zip(values, values[1:])
+    ]
     average_gain = sum(gains[:period]) / period
     average_loss = sum(losses[:period]) / period
     rsi_values: list[float | None] = [None] * period
@@ -319,7 +323,8 @@ async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
     ):
         raise ValueError("market.history lookback_days must be a positive integer")
     from_date = _history_date(
-        arguments.get("from_date") or (today - timedelta(days=lookback_days)).isoformat(),
+        arguments.get("from_date")
+        or (today - timedelta(days=lookback_days)).isoformat(),
         today,
     )
     to_date = _history_date(arguments.get("to_date") or today.isoformat(), today)
@@ -362,7 +367,7 @@ async def run_tool(
                 return await _market_history(arguments, kite_tools)
             result = await call_kite_tool(kite_tools, tool_name, arguments)
         else:
-            async with session() as tools:
+            async with kite_session() as tools:
                 if strategy_operation == "market.history":
                     return await _market_history(arguments, tools)
                 result = await call_kite_tool(tools, tool_name, arguments)

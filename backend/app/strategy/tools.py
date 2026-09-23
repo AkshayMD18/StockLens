@@ -158,6 +158,15 @@ def crosses_below(data: dict) -> dict:
     return _crosses(data, "below")
 
 
+def generate_link(data: dict) -> dict:
+    return {
+        "url": (
+            "https://kite.zerodha.com/chart/web/ciq/"
+            f"{data['exchange']}/{data['symbol']}/{data['instrument_token']}"
+        )
+    }
+
+
 def vwap(data: dict) -> dict:
     high, low, close, volume = (
         data["high"],
@@ -193,6 +202,7 @@ CUSTOM_TOOLS = {
     "condition.crosses_above": crosses_above,
     "condition.crosses_below": crosses_below,
     "indicator.vwap": vwap,
+    "link.generate": generate_link,
 }
 ZERODHA_OPERATIONS = {"market.history": "get_historical_data"}
 
@@ -211,6 +221,33 @@ def _history_result(result: Any) -> Any:
     message = "Kite history response has no candle close series"
     logger.error("kite_history_invalid_response response=%r", result)
     raise ValueError(f"{message}: {detail[:500]}" if detail else message)
+
+
+async def resolve_instrument(symbol, kite_tools=None):
+    if kite_tools is None:
+        async with kite_session() as kite_tools:
+            return await resolve_instrument(symbol, kite_tools)
+
+    symbol = symbol.upper()
+
+    results = await call_kite_tool(
+        kite_tools,
+        "search_instruments",
+        {
+            "query": symbol,
+            "exchange": "NSE",
+        },
+    )
+    token = _find_instrument_token(results, symbol)
+
+    if token is None:
+        raise ValueError(f"No exact NSE instrument found for {symbol}")
+
+    return {
+        "exchange": "NSE",
+        "tradingsymbol": symbol,
+        "instrument_token": token,
+    }
 
 
 def _response_text(value: Any) -> str:
@@ -308,12 +345,10 @@ async def _market_history(arguments: dict[str, Any], tools: list) -> dict:
     if not isinstance(symbol, str) or not symbol:
         raise ValueError("market.history requires a non-empty symbol")
     logger.info("kite_history_search symbol=%s exchange=NSE", symbol)
-    instruments = await call_kite_tool(
-        tools, "search_instruments", {"query": symbol, "exchange": "NSE"}
-    )
-    token = _find_instrument_token(instruments, symbol)
+    token = arguments.get("instrument_token")
     if token is None:
-        raise ValueError(f"No NSE instrument token found for symbol: {symbol}")
+        instrument = await resolve_instrument(arguments["symbol"], tools)
+        token = instrument["instrument_token"]
     today = date.today()
     lookback_days = arguments.get("lookback_days", 100)
     if (

@@ -5,7 +5,7 @@ from rich.table import Table
 from app.db.database import SessionLocal
 from app.db.models import Strategy
 from app.strategy.strategy_executor import StrategyError, StrategyExecutor
-from app.strategy.tools import run_tool
+from app.strategy.tools import resolve_instrument, run_tool
 
 
 async def run_strategy(
@@ -30,9 +30,15 @@ async def run_strategy(
 
     try:
         tool_runner = partial(run_tool, kite_tools=kite_tools)
+        instrument = await resolve_instrument(symbol, kite_tools)
+
         return await StrategyExecutor(tool_runner=tool_runner).execute(
-            record.strategy, {"symbol": symbol.upper()}, include_state=True
+            record.strategy,
+            {"symbol": symbol.upper()},
+            include_state=True,
+            initial_state={"instrument": instrument},
         )
+
     except StrategyError as error:
         raise ValueError(f"Strategy {parsed_strategy_id} failed: {error}") from error
 

@@ -79,8 +79,7 @@ def validate_reference_syntax(value: Any) -> None:
             bool(parts)
             and parts[0].isidentifier()
             and all(
-                part.isidentifier() or part.lstrip("-").isdigit()
-                for part in parts[1:]
+                part.isidentifier() or part.lstrip("-").isdigit() for part in parts[1:]
             )
         )
         if not valid:
@@ -348,9 +347,11 @@ class StrategyExecutor:
         strategy: dict,
         runtime_inputs: dict,
         include_state: bool = False,
+        initial_state: dict | None = None,
     ) -> dict:
-        validate_strategy(strategy)
         state = validate_inputs(strategy, runtime_inputs)
+        state.update(initial_state or {})
+        validate_strategy(strategy)
         current_node_id = strategy["start"]
         step_count = 0
 

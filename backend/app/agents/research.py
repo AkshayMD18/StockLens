@@ -98,7 +98,7 @@ async def _portfolio_context(tools, symbol):
     )
 
 
-def relevant_tools(messages, tool_by_name):
+def relevant_tools(messages, tool_by_name, strategy_names=()):
     message = next(
         (
             str(item.content).lower()
@@ -121,7 +121,7 @@ def relevant_tools(messages, tool_by_name):
             "sma",
             "signal",
         )
-    )
+    ) or any(name.lower() in message for name in strategy_names)
     if strategy_request:
         names += ["execute_strategy"]
     else:
@@ -148,6 +148,12 @@ def relevant_tools(messages, tool_by_name):
 
 async def create_research_agent(tools: list | None = None):
     tools = tools or []
+
+    db = SessionLocal()
+    try:
+        strategy_names = [name for (name,) in db.query(Strategy.name).all()]
+    finally:
+        db.close()
 
     @tool
     async def execute_strategy(strategy_name: str, symbol: str) -> dict:
@@ -185,7 +191,9 @@ async def create_research_agent(tools: list | None = None):
     @wrap_model_call
     async def filter_tools(request: ModelRequest, handler) -> ModelResponse:
         return await handler(
-            request.override(tools=relevant_tools(request.messages, tool_by_name))
+            request.override(
+                tools=relevant_tools(request.messages, tool_by_name, strategy_names)
+            )
         )
 
     prompt = """

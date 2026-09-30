@@ -1,3 +1,8 @@
+"""Legacy module retained only as an import compatibility shim.
+
+The former implementation is kept below as inert source until its historical
+tracking context can be removed; public names are re-exported at the end.
+
 import json
 import logging
 from datetime import date, timedelta
@@ -204,9 +209,6 @@ CUSTOM_TOOLS = {
     "indicator.vwap": vwap,
     "link.generate": generate_link,
 }
-ZERODHA_OPERATIONS = {"market.history": "get_historical_data"}
-
-
 def _history_result(result: Any) -> Any:
     candles = _find_candles(result)
     if candles:
@@ -409,3 +411,29 @@ async def run_tool(
         return result
 
     raise ValueError(f"Unsupported tool type: {tool_type}")
+
+
+"""
+
+# Backward-compatible exports for callers that have not moved to app.tools yet.
+from app.tools import (  # noqa: E402
+    CUSTOM_TOOLS,
+    ZERODHA_OPERATIONS,
+    calculate_signal,
+    crosses_above,
+    crosses_below,
+    ema,
+    generate_link,
+    resolve_instrument,
+    rsi,
+    run_tool,
+    sma,
+    vwap,
+)
+from app.tools.find_candles import find_candles as _find_candles  # noqa: E402
+from app.tools.find_instrument_token import (
+    find_instrument_token as _find_instrument_token,  # noqa: E402
+)
+from app.tools.history_result import history_result as _history_result  # noqa: E402
+from app.tools.kite_datetime import kite_datetime as _kite_datetime  # noqa: E402
+from app.tools.response_text import response_text as _response_text  # noqa: E402

@@ -5,7 +5,7 @@ from rich.table import Table
 from app.db.database import SessionLocal
 from app.db.models import Strategy
 from app.strategy.strategy_executor import StrategyError, StrategyExecutor
-from app.strategy.tools import resolve_instrument, run_tool
+from app.tools import resolve_instrument, run_tool
 
 
 async def run_strategy(

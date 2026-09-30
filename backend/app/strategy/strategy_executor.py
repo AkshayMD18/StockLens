@@ -3,7 +3,7 @@ from __future__ import annotations
 import operator
 from typing import Any
 
-from app.strategy.tools import run_tool
+from app.tools import run_tool
 
 MAX_EXECUTION_STEPS = 1000
 NODE_TYPES = {"operation", "condition", "result"}

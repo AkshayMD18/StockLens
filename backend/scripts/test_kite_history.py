@@ -9,7 +9,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.mcp.kite import call_kite_tool, session
-from app.strategy.tools import _find_instrument_token, _history_result, _kite_datetime
+from app.tools.find_instrument_token import find_instrument_token as _find_instrument_token
+from app.tools.history_result import history_result as _history_result
+from app.tools.kite_datetime import kite_datetime as _kite_datetime
 
 
 async def main() -> None:

@@ -118,13 +118,20 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
             "Run the EMA Crossover strategy on RELIANCE and include my position": [
                 "execute_strategy"
             ],
+            "Can you perform analysis on RELIANCE using RSI_Pullback_Uptrend": [
+                "execute_strategy"
+            ],
             "Show account margin": ["get_profile", "get_margins"],
             "Show my orders": ["get_orders", "get_trades"],
             "Hello": [],
         }
 
         for message, expected in cases.items():
-            selected = relevant_tools([HumanMessage(content=message)], tools)
+            selected = relevant_tools(
+                [HumanMessage(content=message)],
+                tools,
+                ["RSI_Pullback_Uptrend"],
+            )
             self.assertEqual([tool.name for tool in selected], expected)
 
     async def test_main_keeps_kite_session_open_while_running(self):

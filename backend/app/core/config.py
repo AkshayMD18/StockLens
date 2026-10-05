@@ -1,6 +1,9 @@
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+OLLAMA_MODEL = "qwen3:8b"
+OLLAMA_BASE_URL = "http://localhost:11434"
+
 
 class Settings(BaseSettings):
     database_url: str = Field(default="")

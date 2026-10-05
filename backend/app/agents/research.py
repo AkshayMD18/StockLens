@@ -6,7 +6,7 @@ from langchain.tools import tool
 from langchain_core.messages import HumanMessage
 
 from app.cli.commands.strategy import run_strategy
-from app.core.groq import groq_model
+from app.core.ollama import ollama_model
 from app.db.database import SessionLocal
 from app.db.models import Strategy
 
@@ -223,7 +223,7 @@ async def create_research_agent(tools: list | None = None):
         """
 
     return create_agent(
-        model=groq_model,
+        model=ollama_model,
         tools=tools,
         system_prompt=prompt,
         middleware=[filter_tools],

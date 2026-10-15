@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from rich.console import Group
 from rich.table import Table
 
-from app.core.ollama import ollama_model
+from app.core.model_resolver import active_chat_model
 from app.core.stock import screen_stocks
 from app.mcp.screener import FILTER_GUIDE
 
@@ -80,7 +80,7 @@ async def define_screener(query: str) -> Group:
     if not query.strip():
         raise ValueError("Usage: /screener <filters to screen for>")
 
-    parser = ollama_model.with_structured_output(ScanRequest)
+    parser = active_chat_model().with_structured_output(ScanRequest)
     scan = ScanRequest.model_validate(
         await parser.ainvoke(
             [

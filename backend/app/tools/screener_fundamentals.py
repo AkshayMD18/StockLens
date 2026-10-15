@@ -137,7 +137,7 @@ def _number_after(text: str, label: str) -> float | None:
     return _number(match.group(1)) if match else None
 
 
-def _roe(tables: list[list[list[str]]]) -> dict[str, float | None]:
+def _roe(tables: list[list[list[str]]]) -> dict[str, None]:
     values = {"latest": None, "3y": None, "5y": None}
     table = next(
         (table for table in tables if table and table[0] == ["Return on Equity"]), None

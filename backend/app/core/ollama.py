@@ -1,6 +1,7 @@
 from langchain_ollama import ChatOllama
 
-from app.core.config import OLLAMA_BASE_URL, OLLAMA_MODEL
+from app.core.config import OLLAMA_BASE_URL
 
 
-ollama_model = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
+def create_ollama_model(model: str):
+    return ChatOllama(model=model, base_url=OLLAMA_BASE_URL)

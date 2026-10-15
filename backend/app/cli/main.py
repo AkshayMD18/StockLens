@@ -5,6 +5,7 @@ from rich.panel import Panel
 
 from app.agents.research import create_research_agent
 from app.cli.commands.login import kite_login
+from app.cli.commands.model import list_models, select_model
 from app.cli.commands.screener import define_screener
 from app.cli.commands.status import kite_status
 from app.cli.commands.strategy import list_strategies, run_strategy, strategy_details
@@ -24,7 +25,7 @@ async def run(agent, kite_tools: list) -> None:
     messages: list[dict[str, str]] = []
     console.print(
         Panel(
-            "[dim]/login[/], [dim]/status[/], [dim]/screener <filters>[/], [dim]/strategy <id> <symbol>[/], [dim]/exit[/]",
+            "[dim]/login[/], [dim]/status[/], [dim]/model [provider/model][/], [dim]/screener <filters>[/], [dim]/strategy <id> <symbol>[/], [dim]/exit[/]",
             title="[bold cyan]StockLens[/]",
             border_style="cyan",
         )
@@ -58,6 +59,24 @@ async def run(agent, kite_tools: list) -> None:
             except Exception as error:
                 logger.exception("kite_status_error")
                 console.print(f"[bold yellow]Not logged in:[/] {error}")
+            continue
+        if message.lower() == "/model":
+            try:
+                console.print("[bold cyan]StockLens[/] [dim]>[/]", await list_models())
+            except Exception as error:
+                logger.exception("model_list_error")
+                console.print(f"[bold red]Could not list models:[/] {error}")
+            continue
+        if message.lower().startswith("/model "):
+            _, _, model_name = message.partition(" ")
+            try:
+                console.print(
+                    "[bold cyan]StockLens[/] [dim]>[/]",
+                    await select_model(model_name.strip()),
+                )
+            except Exception as error:
+                logger.exception("model_switch_error")
+                console.print(f"[bold red]Could not switch model:[/] {error}")
             continue
         if message.lower().startswith("/screener"):
             _, _, query = message.partition(" ")

@@ -9,6 +9,8 @@ from rich.console import Console
 
 import app.cli.main as cli_main
 import app.cli.query as query
+from app.cli.commands import screener
+from app.cli.commands import model as model_command
 from app.agents.research import _portfolio_context, relevant_tools
 from app.cli import kite_login, kite_status, stream_reply
 
@@ -22,6 +24,52 @@ class FakeAgent:
 
 
 class CliTest(unittest.IsolatedAsyncioTestCase):
+    async def test_model_command_lists_and_switches_model(self):
+        console = Console(record=True, force_terminal=True)
+        console.input = MagicMock(
+            side_effect=["/model", "/model groq/openai/gpt-oss-20b", "/exit"]
+        )
+
+        with (
+            patch.object(cli_main, "console", console),
+            patch.object(cli_main, "list_models", AsyncMock(return_value="models")),
+            patch.object(
+                cli_main,
+                "select_model",
+                AsyncMock(return_value="Active model: groq/openai/gpt-oss-20b"),
+            ) as select,
+        ):
+            await cli_main.run(None, [])
+
+        select.assert_awaited_once_with("groq/openai/gpt-oss-20b")
+        self.assertIn("Active model", console.export_text())
+
+    async def test_screener_uses_active_model(self):
+        parser = AsyncMock(
+            return_value={"source": "close > 100", "universe": 500, "limit": 20}
+        )
+        model = MagicMock()
+        model.with_structured_output.return_value = MagicMock(ainvoke=parser)
+
+        with (
+            patch.object(screener, "active_chat_model", return_value=model),
+            patch.object(
+                screener,
+                "screen_stocks",
+                AsyncMock(return_value={"rows": [], "count": 0, "asOf": "today"}),
+            ),
+        ):
+            await screener.define_screener("stocks above 100")
+
+        model.with_structured_output.assert_called_once_with(screener.ScanRequest)
+
+    def test_model_switch_rejects_unknown_model_name(self):
+        db = MagicMock()
+        db.scalar.return_value = None
+
+        with self.assertRaisesRegex(ValueError, "Unknown model"):
+            model_command.switch_model(db, "groq/not-a-model")
+
     async def test_portfolio_context_runs_holdings_then_positions_and_filters_symbol(self):
         calls = []
 
